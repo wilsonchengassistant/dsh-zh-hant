@@ -1,0 +1,15 @@
+# dsh bundle patch: inserts this plugin into a profile's layer stack.
+#
+# With this file declared as `dsh.bundle.patch` in package.json, `dsh plugin
+# add` wires the plugin into the profile by itself — no hand-written `insert:`
+# row is needed in the profile's own cordis.patch.yml.
+#
+# There is no Host half. The browser half (./client) registers the `zh-Hant`
+# language and its dictionaries through the `locale` service provided by
+# `@deepseek-ai/dsh-client-locale`, which it declares in `dsh.client.inject`.
+# That is a consumer relationship, never a `modifies:` one — declaring
+# `modifies` for a row whose service you consume is a cycle, and a cycle here
+# leaves both fibers pending forever ("Loading plugins…", no exception).
+- insert:
+    - id: zh-hant
+      name: 'dsh-zh-hant'

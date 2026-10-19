@@ -1,0 +1,65 @@
+{
+  "name": "dsh-zh-hant",
+  "version": "0.1.0",
+  "description": "Traditional Chinese (繁體中文) language pack for DeepSeek Harness (DSH): registers a zh-Hant locale and ~2,700 generated dictionaries across every namespace the web GUI uses, with a switch in Settings → General → Language",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/index.d.ts",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "screenshots/*.png"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build-dictionaries.mjs",
+    "build:hk": "node scripts/build-dictionaries.mjs --profile hk",
+    "build:t": "node scripts/build-dictionaries.mjs --profile t",
+    "extract": "node scripts/extract-locales.mjs",
+    "check": "node scripts/build-dictionaries.mjs --check",
+    "test": "node tests/check-language-pack.mjs"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek",
+    "deepseek-harness",
+    "i18n",
+    "locale",
+    "traditional-chinese",
+    "zh-hant",
+    "zh-tw",
+    "traditional"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2"
+  },
+  "devDependencies": {
+    "opencc-js": "^1.4.2"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wilsonchengassistant/dsh-zh-hant.git"
+  },
+  "author": "wilsonchengassistant"
+}

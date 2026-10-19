@@ -1,0 +1,5 @@
+# Build-time only: opencc-js is used by scripts/build-dictionaries.mjs and is
+# never shipped. lib/client.js IS committed — it is the artifact DSH loads.
+/node_modules/
+/.build/
+*.log
