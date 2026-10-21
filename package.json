@@ -1,6 +1,6 @@
 {
   "name": "dsh-zh-hant",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Traditional Chinese (繁體中文) language pack for DeepSeek Harness (DSH): registers a zh-Hant locale and ~2,700 generated dictionaries across every namespace the web GUI uses, with a switch in Settings → General → Language",
   "license": "MIT",
   "type": "module",
