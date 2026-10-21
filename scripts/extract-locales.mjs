@@ -149,10 +149,27 @@ function evalLiteral(text, consts) {
   return new Function(`return (${text})`)()
 }
 
+/**
+ * Map a `for (const [x, y] of IDENT)` loop variable to the collection it iterates.
+ *
+ * Some bundles register their dictionaries from inside a loop:
+ *   const dictionaries = [["zh", { … }], ["en", { … }]]
+ *   for (const [locale, dict] of dictionaries) ctx.locale.register(NS, locale, dict)
+ * The loop variables have no value at the call site, so the call site alone
+ * cannot say which locale is being registered — the collection can.
+ */
+function loopCollections(src) {
+  const out = new Map()
+  const re = /for\s*\(\s*(?:const|let|var)\s*\[\s*([A-Za-z_$][\w$]*)\s*(?:,\s*[A-Za-z_$][\w$]*\s*)?\]\s*of\s+([A-Za-z_$][\w$]*)/g
+  for (const m of src.matchAll(re)) out.set(m[1], m[2])
+  return out
+}
+
 /** Find every locale.register() call site in one client bundle. */
 function harvest(file) {
   const src = readFileSync(file, 'utf8')
   const consts = constValues(src)
+  const loops = loopCollections(src)
   const found = []
   const re = /locale\s*\.\s*register\s*\(/g
   for (const m of src.matchAll(re)) {
@@ -172,6 +189,16 @@ function harvest(file) {
       const locale = JSON.parse(args[1])
       if (!args[2]) continue
       pairs.push([locale, evalLiteral(args[2], consts)])
+    } else if (loops.has(args[1])) {
+      // register(ns, locale, dict) inside `for (const [locale, dict] of X)` — the
+      // locale and the dictionary are the loop variables, so the pair list comes
+      // from the collection X iterates.
+      const collection = consts.get(loops.get(args[1]))
+      if (Array.isArray(collection)) {
+        for (const pair of collection) {
+          if (Array.isArray(pair) && typeof pair[0] === 'string') pairs.push([pair[0], pair[1]])
+        }
+      }
     } else {
       // register(ns, { zh, en }) — values may be inline or a module-level const
       const body = args[1].startsWith('{') ? args[1] : `{${args.slice(1).join(',')}}`
@@ -210,6 +237,7 @@ const args = process.argv.slice(2)
 const jsonAt = args.indexOf('--json')
 const localeAt = args.indexOf('--locale')
 const only = localeAt >= 0 ? args[localeAt + 1] : undefined
+const strict = args.includes('--strict')
 
 const roots = [DSH_PKGS, ...EXTRA_ROOTS]
 for (let i = 0; i < args.length - 1; i++) if (args[i] === '--root') roots.push(resolve(args[i + 1]))
@@ -259,3 +287,14 @@ for (const [ns, d] of rows) {
 console.log(`\n  TOTAL distinct keys (max of zh/en): ${keys}`)
 if (empty.length) console.log(`  NO DICTIONARY FOUND: ${empty.join(', ')}\n`)
 else console.log('')
+
+// A namespace with no dictionary is not a harmless gap: the app registers that
+// namespace itself, so the pack simply cannot derive a `zh-Hant` entry for it
+// and the UI falls back to the shell's own Simplified `zh` — one screen of
+// Simplified Chinese inside an otherwise Traditional app. That happens when the
+// parser does not recognise the bundle's registration shape, so it is worth
+// failing loudly rather than shipping a silently incomplete pack.
+if (strict && empty.length) {
+  console.error(`extractor: ${empty.length} namespace(s) registered without a dictionary: ${empty.join(', ')}`)
+  process.exit(1)
+}

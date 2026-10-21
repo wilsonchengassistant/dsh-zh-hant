@@ -12,7 +12,7 @@
 // 4. The key set is identical to the installed bundles' `zh` dictionaries, so no
 //    lookup can fall through to a missing key.
 import { readFileSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -163,6 +163,22 @@ console.log('\ndsh-zh-hant\n')
   } finally {
     execFileSync('/bin/rm', ['-rf', work])
   }
+}
+
+// 5 ─ the extractor recognises every registration shape the bundles use
+//
+// A namespace the extractor cannot parse is a namespace the pack cannot cover:
+// the app registers it itself, so it falls back to the shell's own Simplified
+// `zh` and shows up as one Simplified screen inside an otherwise Traditional
+// app. The parser once missed `directory-browser` because that bundle
+// registers from inside `for (const [locale, dict] of dictionaries)`, and the
+// gap was invisible — the pack simply had one namespace fewer.
+{
+  const result = spawnSync(process.execPath, [
+    join(ROOT, 'scripts', 'extract-locales.mjs'), '--locale', 'zh', '--strict',
+  ], { encoding: 'utf8' })
+  check(result.status === 0, 'every registered namespace yields a dictionary',
+    (result.stderr || '').trim().split('\n')[0])
 }
 
 console.log(failures.length ? `\n${failures.length} check(s) failed\n` : '\nall checks passed\n')

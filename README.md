@@ -27,7 +27,7 @@ Plugins panel lists the plugin but the Language menu does not, that is why.
 
 ## What it covers
 
-62 namespaces, 2,699 keys, ~90 KB — every dictionary the installed web GUI
+64 namespaces, 2,724 keys, ~91 KB — every dictionary the installed web GUI
 registers, including the experimental features and the third-party plugins that
 opt into `ctx.locale`.
 
@@ -93,14 +93,23 @@ Two details that are easy to get wrong:
   Simplified rather than English, which is the right failure mode for a
   Traditional reader — and it means a namespace added by a future release
   degrades instead of breaking.
+- **A namespace the extractor cannot parse is a gap, not a rounding error.** The
+  app registers its own dictionaries, so a namespace the pack does not cover
+  falls back to the shell's own Simplified `zh` — one Simplified screen inside
+  an otherwise Traditional app. The extractor once missed `directory-browser`
+  because that bundle registers from inside a loop
+  (`for (const [locale, dict] of dictionaries)`), and nothing said so: the pack
+  simply had one namespace fewer. `npm run extract -- --strict` now fails on
+  any namespace that yields no dictionary, and `npm test` asserts it.
 
 ## Tests
 
 `npm test` checks the registration contract (one language, one dictionary per
 namespace, the three-argument register form), that a `zh-Hant` id already owned
 by another pack is a warning rather than a boot failure, that the key set matches
-the installed bundles exactly, and that **no Simplified-only character survives**
-the conversion.
+the installed bundles exactly, that **no Simplified-only character survives**
+the conversion, and that the extractor recognises every namespace the installed
+bundles register.
 
 ## License
 
