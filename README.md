@@ -27,7 +27,7 @@ Plugins panel lists the plugin but the Language menu does not, that is why.
 
 ## What it covers
 
-64 namespaces, 2,724 keys, ~91 KB — every dictionary the installed web GUI
+72 namespaces, 3,063 keys, ~100 KB — every dictionary the installed web GUI
 registers, including the experimental features and the third-party plugins that
 opt into `ctx.locale`.
 

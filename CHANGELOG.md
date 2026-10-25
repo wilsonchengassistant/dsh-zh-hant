@@ -10,13 +10,27 @@ _Not yet published. `npm view dsh-zh-hant version` still reports `0.1.1`._
 
 ### Added
 
+- **The 0.2.1 refresh.** The pack is generated from the `zh` dictionaries the
+  installed bundles register, so a DSH upgrade moves the namespace set. This
+  release covers the shell's 0.2.1 namespaces — `cotTranslation`,
+  `deepseek-model-label-1017`, `entryCustomization`, `pluginMarket`,
+  `secretMask` — and the namespaces of the two plugins added since 0.1.1:
+  `fileDownload` (`dsh-file-download`) and `specialistRegistry`
+  (`dsh-specialist-registry`).
+
+  The namespace set goes **64 → 72** and the key count **2,724 → 3,063**. The
+  new shell release also reworded 22 existing strings (`settings.models`,
+  `settings.webSearch`, `settings.agentPreset`, `permission.access`,
+  `pluginManager`, `conversation`, `goal`, `model`) and added a large number of
+  keys to the namespaces it touched — the Plugins panel alone gains 30.
+
 - The `directory-browser` namespace — the shell's own directory picker
   (`@deepseek-ai/dsh-client-ui-directory-picker-browse`), 13 keys:
   選擇工作區目錄 · 主目錄 · 新建資料夾 · 資料夾名稱 · 在「{name}」中新建資料夾 ·
   未命名資料夾 · 建立 · 取消 · 開啟 · 編輯路徑 · 載入中… ·
   資料夾過多，僅顯示開頭部分。 · 顯示隱藏檔案.
-  The pack goes from **63 namespaces / 2,711 keys** to **64 / 2,724**. Every
-  pre-existing namespace is byte-identical — only this one is new.
+  That took the pack from 63 namespaces / 2,711 keys to 64 / 2,724, with every
+  pre-existing namespace byte-identical.
 
 ### Fixed
 
