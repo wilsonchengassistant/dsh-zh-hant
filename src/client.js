@@ -70,11 +70,29 @@ window.__ModuleLoader__.load({
 			if (!registered) return;
 			var namespaces = Object.keys(DICTIONARIES);
 			ctx.effect(function () {
-				var disposers = namespaces.map(function (name) {
-					return locale.register(name, LANGUAGE.id, DICTIONARIES[name]);
-				});
+				// Register each namespace on its own. The locale service allows
+				// only one dictionary per (namespace, locale) and throws on a
+				// second, and a plugin that registers `zh-Hant` for a namespace
+				// this pack also covers would otherwise take down every
+				// namespace after it in this map — the throw would abort the
+				// whole loop. One bad namespace must cost that namespace, not
+				// the other seventy.
+				var disposers = [];
+				var failed = [];
+				for (var i = 0; i < namespaces.length; i++) {
+					var name = namespaces[i];
+					try {
+						disposers.push(locale.register(name, LANGUAGE.id, DICTIONARIES[name]));
+					} catch (error) {
+						failed.push(name);
+						console.warn('dsh-zh-hant: ' + name + ' already has a zh-Hant dictionary; leaving it to its owner', error);
+					}
+				}
+				if (failed.length) {
+					console.warn('dsh-zh-hant: ' + failed.length + ' namespace(s) left to another owner: ' + failed.join(', '));
+				}
 				return function () {
-					for (var i = disposers.length - 1; i >= 0; i--) disposers[i]();
+					for (var j = disposers.length - 1; j >= 0; j--) disposers[j]();
 				};
 			}, 'zh-hant: dictionaries');
 		}

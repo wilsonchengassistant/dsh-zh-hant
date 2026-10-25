@@ -61,7 +61,25 @@ _Not yet published. `npm view dsh-zh-hant version` still reports `0.1.1`._
   build itself stays lenient, so an unrecognised shape in a future DSH release
   cannot block a rebuild.
 - The README's coverage counts (62 namespaces / 2,699 keys) were stale — they
-  had not been updated since 0.1.0. They now match the build (64 / 2,724).
+  had not been updated since 0.1.0. They now match the build (72 / 3,063).
+
+### Fixed
+
+- **One namespace already owned by someone else now costs only that
+  namespace.** The pack registered its dictionaries with
+  `namespaces.map(name => locale.register(...))`, so a single throw aborted
+  the whole map: every namespace after the offending one never received its
+  Traditional copy. The locale service allows one dictionary per
+  (namespace, locale) and throws on a second, so any plugin that registers
+  `zh-Hant` for a namespace the pack also covers would trigger it — and
+  `fileDownload` is the 16th of 72 namespaces in alphabetical order, taking
+  the other 56 with it.
+
+  Each namespace is now registered on its own, a failure is logged and
+  skipped, and the offending namespace is left to its owner. `npm test` asserts
+  this: with the old loop the suite fails with
+  `Error: locale namespace "fileDownload" already has locale "zh-Hant"`; with
+  the guard it passes.
 
 ## 0.1.1 — 2026-10-21
 

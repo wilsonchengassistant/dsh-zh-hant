@@ -43,8 +43,11 @@ function mount(exportsObject = {}) {
 }
 
 /** A stand-in for LocaleRuntime recording exactly what the pack asks of it. */
-function stubLocale({ failLanguage = false } = {}) {
+function stubLocale({ failLanguage = false, ownedByOthers = [] } = {}) {
   const calls = { languages: [], dictionaries: [] }
+  // Namespaces another owner already holds: the service allows one dictionary
+  // per (namespace, locale), so the pack's request for one of these throws.
+  const seen = new Set(ownedByOthers)
   return {
     calls,
     addLanguage(input) {
@@ -53,16 +56,21 @@ function stubLocale({ failLanguage = false } = {}) {
       return () => calls.languages.splice(calls.languages.indexOf(input), 1)
     },
     register(ns, localeOrDicts, dict) {
+      const pair = `${ns} ${typeof localeOrDicts === 'string' ? localeOrDicts : 'dicts'}`
+      if (seen.has(pair)) {
+        throw new Error(`locale namespace "${ns}" already has locale "${localeOrDicts}"`)
+      }
+      seen.add(pair)
       calls.dictionaries.push(dict === undefined ? [ns, localeOrDicts] : [ns, localeOrDicts, dict])
       return () => {}
     },
   }
 }
 
-function run({ failLanguage = false } = {}) {
+function run({ failLanguage = false, ownedByOthers = [] } = {}) {
   const effects = []
   const ctx = {
-    locale: stubLocale({ failLanguage }),
+    locale: stubLocale({ failLanguage, ownedByOthers }),
     effect(fn, label) { effects.push({ fn, label }); return fn() },
   }
   mount().apply(ctx)
@@ -179,6 +187,31 @@ console.log('\ndsh-zh-hant\n')
   ], { encoding: 'utf8' })
   check(result.status === 0, 'every registered namespace yields a dictionary',
     (result.stderr || '').trim().split('\n')[0])
+}
+
+// 6 ─ one namespace already owned by someone else costs only that namespace
+//
+// The locale service allows one dictionary per (namespace, locale) and throws
+// on a second. A plugin that registers `zh-Hant` for a namespace the pack also
+// covers would, in an unguarded loop, abort the registration of every
+// namespace after it — 56 of 72 at the time of writing. One bad namespace must
+// cost that namespace alone.
+{
+  const { DICTIONARIES } = mount()
+  const all = Object.keys(DICTIONARIES)
+  // A realistic case: `dsh-file-download` once registered `fileDownload` +
+  // `zh-Hant` itself, which the pack also covers.
+  const claimed = ['fileDownload']
+  const { ctx, namespaces } = run({ ownedByOthers: claimed.map((ns) => `${ns} zh-Hant`) })
+  check(ctx.locale.calls.dictionaries.length === namespaces - claimed.length,
+    'a duplicate costs exactly one namespace, not the rest',
+    `registered ${ctx.locale.calls.dictionaries.length} of ${namespaces}`)
+  check(ctx.locale.calls.dictionaries.length > 0,
+    'the remaining namespaces still register')
+  check(!ctx.locale.calls.dictionaries.some(([ns, locale]) => ns === 'fileDownload' && locale === 'zh-Hant'),
+    'the namespace another owner holds is left to it')
+  check(ctx.locale.calls.dictionaries.length >= namespaces - 2,
+    `the namespaces after the duplicate still register (${all.length} total)`)
 }
 
 console.log(failures.length ? `\n${failures.length} check(s) failed\n` : '\nall checks passed\n')
