@@ -150,6 +150,58 @@ function evalLiteral(text, consts) {
 }
 
 /**
+ * Resolve a plain string-literal argument to its value.
+ *
+ * 0.2.2-rc.3 changed the client bundles to register their namespace with a
+ * TEMPLATE LITERAL instead of a double-quoted string:
+ *   ctx.effect(() => ctx.locale.register(`shortcuts`, { … }), 'shortcuts')
+ *   ctx.locale.register(`settings.permission`, { … })
+ *   ctx.locale.register(`sidebarPdf`, { … })
+ * The old resolver only understood `"…"` (JSON.parse) or a const name, so a
+ * backtick namespace was looked up as an identifier in the const table, missed,
+ * and the whole registration site was SKIPPED — 20 namespaces the app really
+ * registers never reached the pack and failed silently (untranslated English
+ * inside an otherwise Traditional UI). Accept every plain string form: `"…"`,
+ * `'…'` and a template literal with NO `${…}` interpolation. An interpolated
+ * template cannot be resolved statically, so it stays skipped.
+ */
+function stringLiteral(text) {
+  const q = text[0]
+  if (q !== '"' && q !== "'" && q !== '`') return undefined
+  let end
+  if (q === '`') {
+    const scan = templateLiteral(text)
+    if (!scan || scan.interpolated) return undefined
+    end = scan.end
+  } else {
+    try { end = skipString(text, 0) } catch { return undefined }
+  }
+  try {
+    const value = evalLiteral(text.slice(0, end + 1))
+    return typeof value === 'string' ? value : undefined
+  } catch { return undefined }
+}
+
+/**
+ * Scan a template literal, returning the index of its closing backtick and
+ * whether it interpolates (`${…}`). The interpolation body is skipped as a
+ * unit, so a nested template literal does not end the scan early.
+ */
+function templateLiteral(src) {
+  for (let i = 1; i < src.length; i++) {
+    const c = src[i]
+    if (c === '\\') { i++; continue }
+    if (c === '`') return { end: i, interpolated: false }
+    if (c === '$' && src[i + 1] === '{') {
+      const close = balanced(src, i + 1)
+      if (close < 0) return undefined
+      return { end: close, interpolated: true }
+    }
+  }
+  return undefined
+}
+
+/**
  * Map a `for (const [x, y] of IDENT)` loop variable to the collection it iterates.
  *
  * Some bundles register their dictionaries from inside a loop:
@@ -180,15 +232,18 @@ function harvest(file) {
     if (args.length < 2) continue
 
     const nsArg = args[0]
-    const ns = nsArg.startsWith('"') ? JSON.parse(nsArg) : consts.get(nsArg)
+    // A namespace may be a plain string literal ("…", '…' or `…`) or a const
+    // holding one. The template-literal form is what 0.2.2-rc.3 ships.
+    const ns = stringLiteral(nsArg) ?? consts.get(nsArg)
     if (typeof ns !== 'string') continue
 
     const pairs = []
-    if (args[1].startsWith('"')) {
-      // register(ns, 'ja', { ... }) — one locale per call
-      const locale = JSON.parse(args[1])
+    const localeArg = stringLiteral(args[1])
+    if (localeArg !== undefined) {
+      // register(ns, 'ja', { ... }) — one locale per call. The locale id may
+      // itself be a template literal in newer bundles.
       if (!args[2]) continue
-      pairs.push([locale, evalLiteral(args[2], consts)])
+      pairs.push([localeArg, evalLiteral(args[2], consts)])
     } else if (loops.has(args[1])) {
       // register(ns, locale, dict) inside `for (const [locale, dict] of X)` — the
       // locale and the dictionary are the loop variables, so the pair list comes
@@ -201,14 +256,34 @@ function harvest(file) {
       }
     } else {
       // register(ns, { zh, en }) — values may be inline or a module-level const
-      const body = args[1].startsWith('{') ? args[1] : `{${args.slice(1).join(',')}}`
-      for (const [key, value] of objectMembers(body)) {
-        // Values are inline literals, module-level consts (`{ zh, en }`), or
-        // references to esbuild-renamed consts (`{ zh: zh$1, en: en$1 }`).
-        const dict = value === undefined || /^[\w$]+$/.test(value)
-          ? consts.get(value ?? key)
-          : evalLiteral(value, consts)
-        if (dict && typeof dict === 'object') pairs.push([key.replace(/^["']|["']$/g, ''), dict])
+      //
+      // The dictionary may also be a NAMED const holding a locale map:
+      //   const accessDictionaries = { zh: accessZh, en: accessEn, ... }
+      //   ctx.locale.register(PERMISSION_ACCESS_NS, accessDictionaries)
+      // Read as a shorthand member that would look like ONE locale called
+      // "accessDictionaries", so the namespace ends up with no `zh` at all and
+      // the extractor reports it as "registered without a dictionary". Expand
+      // such a const into one pair per member instead. (0.2.2-rc.1 ships three
+      // bundles in this shape: permission-presets, context-menu, schedule.)
+      const named = !args[1].startsWith('{') ? consts.get(args[1]) : undefined
+      const namedMembers =
+        named && typeof named === 'object' && !Array.isArray(named)
+          ? Object.entries(named)
+          : []
+      if (namedMembers.length && namedMembers.every(([, v]) => v && typeof v === 'object' && !Array.isArray(v))) {
+        for (const [locale, dict] of namedMembers) {
+          pairs.push([locale.replace(/^["']|["']$/g, ''), dict])
+        }
+      } else {
+        const body = args[1].startsWith('{') ? args[1] : `{${args.slice(1).join(',')}}`
+        for (const [key, value] of objectMembers(body)) {
+          // Values are inline literals, module-level consts (`{ zh, en }`), or
+          // references to esbuild-renamed consts (`{ zh: zh$1, en: en$1 }`).
+          const dict = value === undefined || /^[\w$]+$/.test(value)
+            ? consts.get(value ?? key)
+            : evalLiteral(value, consts)
+          if (dict && typeof dict === 'object') pairs.push([key.replace(/^["']|["']$/g, ''), dict])
+        }
       }
     }
     found.push({ ns, pairs, file })

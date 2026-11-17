@@ -127,11 +127,14 @@ console.log('\ndsh-zh-hant\n')
     // the phrase pass again would rewrite it to 程式 ID. What must never survive
     // is a Simplified-only CHARACTER, which `cn → t` is the right detector for.
     //
-    // Two characters are exempt: OpenCC prefers a variant that is itself correct
+    // Three characters are exempt: OpenCC prefers a variant that is itself correct
     // Traditional — 游標 is the standard word for "cursor" (`cn → t` rewrites 游 →
-    // 遊), and 社群 is normally written with 群 (`cn → t` rewrites it to 羣).
-    // Flagging our own good output would train everyone to ignore this check.
-    const TRADITIONAL_VARIANTS = new Set(['游', '群'])
+    // 遊), 社群 is normally written with 群 (`cn → t` rewrites it to 羣), and 稽核 is
+    // the standard Taiwan word for "audit" (`cn → t` rewrites 核 → 覈 inside it).
+    // 核 is the same character in both scripts, so exempting it cannot hide a
+    // Simplified-only form. Flagging our own good output would train everyone to
+    // ignore this check.
+    const TRADITIONAL_VARIANTS = new Set(['游', '群', '核'])
     const convert = pipeline(OpenCC, 't')
     const residue = []
     let values = 0

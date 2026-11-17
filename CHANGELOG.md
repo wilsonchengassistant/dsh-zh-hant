@@ -10,6 +10,27 @@ _Not yet published. `npm view dsh-zh-hant version` still reports `0.1.1`._
 
 ### Added
 
+- **The 0.2.2 refresh.** The pack is regenerated from the `zh` dictionaries the
+  installed bundles register, so a DSH upgrade moves the namespace set. This
+  release covers DSH **0.2.2-rc.3**: the namespace set goes **72 → 86** and the
+  key count **3,063 → 5,439**.
+
+  Twenty namespaces the shell really registers were missing from the pack
+  before this release, because 0.2.2-rc.3 registers them with a **template
+  literal** that the extractor did not recognise:
+  `account.notifications`, `actionCards`, `contextMenu`,
+  `creationRecommendations`, `documentHtml`, `documentMarkdown`,
+  `entryCustomization`, `fileActions`, `fileDrag`, `job`,
+  `pluginRecommendations`, `settings.account`, `settings.agentPreset`,
+  `settings.permission`, `shortcuts`, `shortcuts.layout`, `sidebarExcel`,
+  `sidebarImage`, `sidebarOffice`, `sidebarPdf`. Each of them silently fell
+  back to the shell's own Simplified `zh` — one Simplified screen inside an
+  otherwise Traditional app.
+
+  `deepseek-model-label-1017` is gone on purpose: the shell dropped the
+  `dsh-client-ui-deepseek-model-label-1017` bundle in 0.2.2, so there is no
+  namespace left to cover.
+
 - **The 0.2.1 refresh.** The pack is generated from the `zh` dictionaries the
   installed bundles register, so a DSH upgrade moves the namespace set. This
   release covers the shell's 0.2.1 namespaces — `cotTranslation`,
@@ -33,6 +54,34 @@ _Not yet published. `npm view dsh-zh-hant version` still reports `0.1.1`._
   pre-existing namespace byte-identical.
 
 ### Fixed
+
+- **The extractor reads a namespace registered as a template literal.** From
+  0.2.2-rc.3 the bundles write
+
+  ```js
+  ctx.locale.register(`shortcuts`, { … })
+  ```
+
+  and the resolver only understood `"…"` or a const name, so it looked the
+  backtick text up as an identifier, missed, and dropped the whole
+  registration site. The namespace never reached the pack and failed
+  silently. The resolver now accepts `"…"`, `'…'` and a template literal with
+  no `${…}` interpolation, for the namespace argument and for the locale
+  argument of the `register(ns, 'ja', { … })` shape. An interpolated template
+  cannot be resolved statically and is still skipped.
+
+- **The extractor reads a dictionary registered through a named const.** Some
+  0.2.2-rc.1 bundles register
+
+  ```js
+  const accessDictionaries = { zh: accessZh, en: accessEn, … }
+  ctx.locale.register(PERMISSION_ACCESS_NS, accessDictionaries)
+  ```
+
+  Read as a shorthand member, that looks like ONE locale called
+  "accessDictionaries", so the namespace came out with no `zh` at all. The
+  extractor now expands a named const whose values are all dictionaries into
+  one pair per member.
 
 - **The extractor now reads a dictionary registered from inside a loop.**
   `dsh-client-ui-directory-picker-browse` registers with
